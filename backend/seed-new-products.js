@@ -1,0 +1,356 @@
+/**
+ * seed-new-products.js
+ * Seeds the new Men's products batch (T-shirts, shirts, accessories, footwear etc.)
+ * Price rules: all prices end in 99, minimum ₹499 for anything under ₹400
+ */
+
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+function adjustPrice(raw) {
+  const cleaned = String(raw).replace(/[₹,\s]/g, '').replace(/[^\d.]/g, '');
+  const p = Math.round(parseFloat(cleaned) || 0);
+  if (!p || p < 1) return 499;
+  // Minimum 7× the original price, then round UP to the next number ending in 99
+  // Formula: Math.ceil(p * 7 / 100) * 100 - 1
+  return Math.ceil((p * 7) / 100) * 100 - 1;
+}
+
+function inferType(name) {
+  const n = name.toLowerCase();
+  if (n.includes('sweatshirt') || n.includes('hoodie')) return 'Sweatshirt & Hoodies';
+  if (n.includes('tracksuit')) return 'Sweatshirt & Hoodies';
+  if (n.includes('track pant') || n.includes('jogger') || n.includes('chino') || n.includes('trouser') || n.includes('flat front pant') || n.includes('flat-front pant')) return 'Trousers & Pants';
+  if (n.includes('shirt')) return 'Shirts';
+  if (n.includes('polo')) return 'Tshirts';
+  if (n.includes('t-shirt') || n.includes('tshirt') || n.includes('t shirt') || n.includes('crew-neck') || n.includes('crew neck') || n.includes('round-neck') || n.includes('round neck') || n.includes('henley') || n.includes('high-neck') || n.includes('v-neck') || n.includes('turtleneck')) return 'Tshirts';
+  if (n.includes('jacket') || n.includes('bomber')) return 'Jackets & Coats';
+  if (n.includes('sneaker') || n.includes('shoe') || n.includes('slip-on') || n.includes('lace-up shoe')) return 'Footwear';
+  if (n.includes('socks')) return 'Socks';
+  if (n.includes('sunglass') || n.includes('aviator')) return 'Sunglasses';
+  if (n.includes('belt')) return 'Belts';
+  if (n.includes('chain') || n.includes('pendant') || n.includes('necklace') || n.includes('locket')) return 'Chains';
+  if (n.includes('bracelet')) return 'Bracelets & Bangles';
+  if (n.includes('rakhi')) return 'Rakhis';
+  if (n.includes('ring')) return 'Rings';
+  if (n.includes('earring')) return 'Earrings';
+  return 'Tshirts';
+}
+
+function inferGender(name) {
+  const n = name.toLowerCase();
+  if (n.includes('women') || n.includes('woman')) return 'Women';
+  if (n.includes('kids') || n.includes('boys') || n.includes('girls')) return 'Kids';
+  return 'Men';
+}
+
+// ─── All products from the pasted list ───────────────────────────────────────
+const RAW = [
+  ['Men Typographic Print Regular Fit Crew-Neck T-Shirt', 325, 'https://assets.ajio.com/medias/sys_master/root1/20260506/zkUw/69fb21b1fcb5bb61d2a3b09e/red_tape_grey_men_typographic_print_regular_fit_crew-neck_t-shirt.jpg'],
+  ['Men Colour-Block Regular Fit T-Shirt', 200, 'https://assets.ajio.com/medias/sys_master/root/20240513/Cyo4/6641b63005ac7d77bb567f14/eyebogler_yellow_men_colour-block_regular_fit_t-shirt.jpg'],
+  ['Men Textured Regular Fit Shirt', 198, 'https://assets.ajio.com/medias/sys_master/root1/20251009/zYnj/68e7c1308bfb9009ac61efff/buda_jeans_co_black_men_textured_regular_fit_shirt.jpg'],
+  ['Men Printed Regular Fit Shirt with Spread Collar', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260627/kAtl/6a3ed9bbafd8cf5e739cc097/samavart_designs_black_men_printed_regular_fit_shirt_with_spread_collar.jpg'],
+  ['Men Eagle Print Regular Fit Shirt', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260626/1Jdn/6a3eb538ade02f052a53647d/samavart_designs_black_men_eagle_print_regular_fit_shirt.jpg'],
+  ['Men Everyday Socks', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/ukoY/692f491c8945db77cf07732c/gialon_cocoa_men_everyday_socks.jpg'],
+  ['Men Checked Popcorn Textured Slim Fit Shirt', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260505/E5B6/69f9d5affcb5bb61d29f13ae/samavart_designs_pink_men_checked_popcorn_textured_slim_fit_shirt.jpg'],
+  ['Men Printed Regular Fit Shirt with Spread Collar (White)', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260626/gA4i/6a3eba87ade02f052a53fbb1/samavart_designs_white_men_printed_regular_fit_shirt_with_spread_collar.jpg'],
+  ['Men Everyday Socks (Black)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/owz6/692f4be58945db77cf07ceac/gialon_black_men_everyday_socks.jpg'],
+  ['Men Regular Fit Henley-Neck T-Shirt', 150, 'https://assets.ajio.com/medias/sys_master/root/20240513/Y0N4/6641b4a505ac7d77bb5666fc/eyebogler_charcoal_men_regular_fit_henley-neck_t-shirt.jpg'],
+  ['Men Typographic Print T-Shirt', 273, 'https://assets.ajio.com/medias/sys_master/root1/20260506/rrAy/69fb046ffcb5bb61d2a04b05/red_tape_navy_men_typographic_print_t-shirt.jpg'],
+  ['Men Everyday Socks (Red)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/xgoh/692f4b4b720fb821d365c8fb/gialon_red_men_everyday_socks.jpg'],
+  ['Graphic Print Loose Fit Crew-Neck T-Shirt', 150, 'https://assets.ajio.com/medias/sys_master/root/20230804/beHF/64ccd2d7a9b42d15c98b97e6/eyebogler_black_graphic_print_loose_fit_crew-neck_t-shirt.jpg'],
+  ['Men Eagle Print Regular Fit Shirt (White)', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260626/lbAx/6a3eb698ade02f052a53914e/samavart_designs_white_men_eagle_print_regular_fit_shirt.jpg'],
+  ['Men Everyday Socks (Yellow)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/K9cU/692f498e720fb821d3659270/gialon_yellow_men_everyday_socks.jpg'],
+  ['Straight Track Pants with Logo Print', 175, 'https://assets.ajio.com/medias/sys_master/root/20240513/9hRY/6641b50f05ac7d77bb56708c/eyebogler_olive_straight_track_pants_with_logo_print.jpg'],
+  ['Graphic Oversized Fit T-shirt', 325, 'https://assets.ajio.com/medias/sys_master/root1/20260506/CntI/69fb0c04fcb5bb61d2a13e2e/red_tape_white_graphic_oversized_fit_t-shirt.jpg'],
+  ['Men Everyday Socks (Blue)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/BK5D/692f4ab18945db77cf07a83c/gialon_blue_men_everyday_socks.jpg'],
+  ['Men Regular Fit Crew-Neck T-Shirt with Geometric Print', 225, 'https://assets.ajio.com/medias/sys_master/root/20240513/WWSV/6641b56516fd2c6e6a00fef0/eyebogler_navy_blue_men_regular_fit_crew-neck_t-shirt_with_geometric_print.jpg'],
+  ['Men Eagle Print Regular Fit Shirt (Black 2)', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260626/hg7h/6a3eb874ade02f052a53cb23/samavart_designs_black_men_eagle_print_regular_fit_shirt.jpg'],
+  ['Men Everyday Socks (Orange)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/GXi8/692f4850720fb821d365671a/gialon_orange_men_everyday_socks.jpg'],
+  ['Men Colour-Block Regular Fit T-Shirt (Black)', 175, 'https://assets.ajio.com/medias/sys_master/root/20240513/epSI/6641b63816fd2c6e6a0107ee/eyebogler_black_men_colour-block_regular_fit_t-shirt.jpg'],
+  ['Men Regular Fit Graphic Sweatshirt', 430, 'https://assets.ajio.com/medias/sys_master/root1/20260506/fbMM/69fb1527fcb5bb61d2a237ba/red_tape_black_men_regular_fit_graphic_sweatshirt.jpg'],
+  ['Men Everyday Socks (Mint)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/wr5s/692f43f88945db77cf070f59/gialon_mint_men_everyday_socks.jpg'],
+  ['Track Pants with Elasticated Waistband', 175, 'https://assets.ajio.com/medias/sys_master/root/20240513/gmXt/6641b50d16fd2c6e6a00f9c9/eyebogler_charcoal_track_pants_with_elasticated_waistband.jpg'],
+  ['Men Regular Fit Henley T-Shirt', 250, 'https://assets.ajio.com/medias/sys_master/root/20240513/cD0B/6641b52b05ac7d77bb567361/eyebogler_sea_green_men_regular_fit_henley_t-shirt.jpg'],
+  ['Men Everyday Socks (Grey)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/Gvsc/692f496b8945db77cf077e47/gialon_grey_men_everyday_socks.jpg'],
+  ['Men Regular Fit Crew-Neck T-Shirt with Geometric Print (Grey)', 200, 'https://assets.ajio.com/medias/sys_master/root/20240513/TjEZ/6641b55505ac7d77bb567693/eyebogler_grey_men_regular_fit_crew-neck_t-shirt_with_geometric_print.jpg'],
+  ['Men Regular Fit Round-Neck T-Shirt (Green)', 175, 'https://assets.ajio.com/medias/sys_master/root/20240605/sK2U/665fbddb05ac7d77bb9eaa08/eyebogler_jasper_men_regular_fit_round-neck_t-shirt.jpg'],
+  ['Men Everyday Socks (Beige)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/6R1d/692f4c32720fb821d365e41a/gialon_beige_men_everyday_socks.jpg'],
+  ['Men Striped Regular Fit Polo T-Shirt', 175, 'https://assets.ajio.com/medias/sys_master/root/20250210/CoLy/67a9f4dfbc78b543a932c273/eyebogler_teal_men_striped_regular_fit_polo_t-shirt.jpg'],
+  ['Men Tapered Fit Mid-Rise Chinos', 225, 'https://assets.ajio.com/medias/sys_master/root1/20260325/SJ8d/69c2eb2b5bc52e77e0ff461c/eyebogler_charcoal_grey_men_tapered_fit_mid-rise_chinos.jpg'],
+  ['Men Printed Regular Fit Shirt', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260513/IaEg/6a03877b14d0c21719d8b168/samavart_designs_black_men_printed_regular_fit_shirt.jpg'],
+  ['Men Checked Popcorn Textured Slim Fit Shirt (Purple)', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260505/TrI9/69f9d20114d0c21719b877c6/samavart_designs_purple_men_checked_popcorn_textured_slim_fit_shirt.jpg'],
+  ['Football Athletic Socks (Black)', 76, 'https://assets.ajio.com/medias/sys_master/root/20250509/j3lT/681d7cf555340d4b4f264c69/usoxo_black_football_athletic_socks.jpg'],
+  ['Men Printed Regular Fit Shirt with Spread Collar (Maroon)', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260627/7QsR/6a3ed924ade02f052a5473c8/samavart_designs_maroon_men_printed_regular_fit_shirt_with_spread_collar.jpg'],
+  ['Men Regular Fit Classic Shirt (Brown)', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260506/N9m3/69fb22a114d0c21719bd9f05/samavart_designs_brown_men_regular_fit_classic_shirt.jpg'],
+  ['Men Printed Loose Fit Round-Neck T-Shirt', 200, 'https://assets.ajio.com/medias/sys_master/root/20240513/UlZQ/6641b52016fd2c6e6a00fb76/eyebogler_teal_men_printed_loose_fit_round-neck_t-shirt.jpg'],
+  ['Men Everyday Socks (Pink)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/aWkr/692f48d7720fb821d3657a10/gialon_pink_men_everyday_socks.jpg'],
+  ['Fitted Track Pants with Drawstring Waist', 175, 'https://assets.ajio.com/medias/sys_master/root/20240513/MDgN/6641b50f05ac7d77bb567093/eyebogler_grey_fitted_track_pants_with_drawstring_waist.jpg'],
+  ['Men Printed Regular Fit Shirt with Spread Collar (White 2)', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260627/lVRj/6a3ed94bade02f052a54791b/samavart_designs_white_men_printed_regular_fit_shirt_with_spread_collar.jpg'],
+  ['Men Everyday Socks (Pink 2)', 60, 'https://assets.ajio.com/medias/sys_master/root1/20251203/SvB1/692f4c6e720fb821d365eb22/gialon_pink_men_everyday_socks.jpg'],
+  ['Men Zip-Front Bomber Jacket', 1008, 'https://assets.ajio.com/medias/sys_master/root1/20260506/50cS/69fb0a2114d0c21719bae6d1/red_tape_maroon_men_zip-front_bomber_jacket.jpg'],
+  ['Football Athletic Socks (Blue)', 76, 'https://assets.ajio.com/medias/sys_master/root/20250509/Bfy2/681d7cfd55340d4b4f264ce6/usoxo_blue_football_athletic_socks.jpg'],
+  ['Men Self-Design Tailored Fit Shirt', 499, 'https://assets.ajio.com/medias/sys_master/root/20250615/COb0/684ec8df55340d4b4faf758f/neonomad_black_men_self-design_tailored_fit_shirt.jpg'],
+  ['Men Straight Track Pants with Cargo Pockets', 260, 'https://assets.ajio.com/medias/sys_master/root/20250401/bYsB/67ebc33e7a6cd4182f9b5fef/jump_cuts_light_grey_men_straight_track_pants_with_cargo_pockets.jpg'],
+  ['Men Knitted Loose Fit Shirt with Mandarin Collar', 216, 'https://assets.ajio.com/medias/sys_master/root/20231121/5RT6/655cde47ddf77915199314d4/wuxi_white_men_knitted_loose_fit_shirt_with_mandarin_collar.jpg'],
+  ['Men Cuban-Collar Boxy Fit Shirt', 499, 'https://assets.ajio.com/medias/sys_master/root/20250613/I43X/684c2e2c7a6cd4182fab0f80/neonomad_black_men_cuban-collar_boxy_fit_shirt.jpg'],
+  ['Regular Fit Colourblock Crew-Neck T-Shirt', 150, 'https://assets.ajio.com/medias/sys_master/root/20230731/oqpR/64c7a2f1eebac147fc96b512/eyebogler_navy_blue_regular_fit_colourblock_crew-neck_t-shirt.jpg'],
+  ['Crew-Neck T-Shirt with Full Sleeves', 200, 'https://assets.ajio.com/medias/sys_master/root/20240513/FCDg/6641b50316fd2c6e6a00f893/eyebogler_black_crew-neck_t-shirt_with_full_sleeves.jpg'],
+  ['TS-50881-C1 UV-Protected Aviators', 299, 'https://assets.ajio.com/medias/sys_master/root/20221206/XR3Q/638f6906aeb269659cd5b125/ted_smith_grey_ts-50881-c1_uv-protected_aviators.jpg'],
+  ['Graphic Print Loose Fit Round-Neck T-Shirt', 175, 'https://assets.ajio.com/medias/sys_master/root/20230906/g6PV/64f8e6e9afa4cf41f5c9ba3b/eyebogler_olive_graphic_print_loose_fit_round-neck_t-shirt.jpg'],
+  ['Men Regular Fit Half-Sleeve Polo T-Shirt', 225, 'https://assets.ajio.com/medias/sys_master/root1/20260306/gchJ/69aabcd44970ce6a6e25c672/buda_jeans_co_cream_men_regular_fit_half-sleeve_polo_t-shirt.jpg'],
+  ['Polo T-Shirt with Short Sleeves', 200, 'https://assets.ajio.com/medias/sys_master/root/20250228/uW4y/67c1b14159f835398008be19/eyebogler_wine_polo_t-shirt_with_short_sleeves.jpg'],
+  ['Men Regular Fit Colourblock Round-Neck T-Shirt', 150, 'https://assets.ajio.com/medias/sys_master/root/20240714/r6NI/6692fffe1d763220fa8ec144/eyebogler_green_men_regular_fit_colourblock_round-neck_t-shirt.jpg'],
+  ['Men Tiger Print Regular Fit Shirt', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260626/KSxW/6a3eb651afd8cf5e739bb77a/samavart_designs_black_men_tiger_print_regular_fit_shirt.jpg'],
+  ['Cuban Collar Shirt with Short Sleeves', 240, 'https://assets.ajio.com/medias/sys_master/root/20231124/JMFX/6560cef1ddf77915199a38bc/wuxi_white_cuban_collar_shirt_with_short_sleeves.jpg'],
+  ['Men Crew-Neck T-Shirt with Short Sleeves', 200, 'https://assets.ajio.com/medias/sys_master/root/20250613/JMwz/684b5a3655340d4b4fa70d4e/leriya_fashion_blue_men_crew-neck_t-shirt_with_short_sleeves.jpg'],
+  ['Men Straight Flexi Waist Track Pants', 250, 'https://assets.ajio.com/medias/sys_master/root1/20260330/Pg3x/69cab7c79e784a25d5a408bb/eyebogler_jaslg_men_straight_flexi_waist_track_pants.jpg'],
+  ['Men Regular Fit Classic Shirt (Lavender)', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260506/NBHm/69fb23f1fcb5bb61d2a3f66e/samavart_designs_lavender_men_regular_fit_classic_shirt.jpg'],
+  ['Striped Polo T-Shirt', 175, 'https://assets.ajio.com/medias/sys_master/root/20230804/g2KB/64cc28e5eebac147fca58a16/eyebogler_navy_blue_striped_polo_t-shirt.jpg'],
+  ['Men Crochet Relaxed Fit Shirt', 685, 'https://assets.ajio.com/medias/sys_master/root/20250321/NBTJ/67dd5c9655340d4b4f7e9bf2/asos_design_neutral_white_men_crochet_relaxed_fit_shirt.jpg'],
+  ['Men Typographic Regular Fit Round-Neck T-Shirt', 180, 'https://assets.ajio.com/medias/sys_master/root1/20250728/zvvo/6887583e8bfb9009ac3f2031/jump_cuts_black_men_typographic_regular_fit_round-neck_t-shirt.jpg'],
+  ['Men Regular Fit Crew-Neck T-Shirt with Geometric Print (Wine)', 200, 'https://assets.ajio.com/medias/sys_master/root/20240513/Gols/6641b56305ac7d77bb56776f/eyebogler_wine_men_regular_fit_crew-neck_t-shirt_with_geometric_print.jpg'],
+  ['Men Regular Fit High-Neck T-Shirt', 175, 'https://assets.ajio.com/medias/sys_master/root/20240513/YrtP/6641b63f05ac7d77bb567f3d/eyebogler_navy_blue_men_regular_fit_high-neck_t-shirt.jpg'],
+  ['Men Ribbed Regular Fit Shirt', 198, 'https://assets.ajio.com/medias/sys_master/root1/20251010/AcyE/68e8b9413d468c61ab56bd57/buda_jeans_co_brown_men_ribbed_regular_fit_shirt.jpg'],
+  ['Cotton Crew-Neck T-Shirt', 200, 'https://assets.ajio.com/medias/sys_master/root/20240513/CCKu/6641b50005ac7d77bb566edb/eyebogler_grey_melange_cotton_crew-neck_t-shirt.jpg'],
+  ['Regular Fit Short-Sleeves Crew-Neck T-Shirt', 130, 'https://assets.ajio.com/medias/sys_master/root/20230624/uhwd/64964fbdeebac147fcef4725/eyebogler_black_regular_fit_short-sleeves_crew-neck_t-shirt.jpg'],
+  ['Men Sneakers with Faux Leather Upper', 495, 'https://assets.ajio.com/medias/sys_master/root1/20250821/zdZt/68a7244d8bfb9009aca33cbd/kosher_olive_men_sneakers_with_faux_leather_upper.jpg'],
+  ['Men Colourblock Regular Fit Crew-Neck T-Shirt', 225, 'https://assets.ajio.com/medias/sys_master/root/20240906/dqAQ/66daeb366f60443f315ddfb7/eyebogler_lime_green_men_colourblock_regular_fit_crew-neck_t-shirt.jpg'],
+  ['Men Regular Fit Henley T-Shirt (Sea Green)', 175, 'https://assets.ajio.com/medias/sys_master/root/20240513/xNya/6641b53916fd2c6e6a00fd13/eyebogler_sea_green_men_regular_fit_henley_t-shirt.jpg'],
+  ['Men Regular Fit Classic Shirt (Black)', 270, 'https://assets.ajio.com/medias/sys_master/root1/20260506/P88H/69fb35b7fcb5bb61d2a4cc38/samavart_designs_black_men_regular_fit_classic_shirt.jpg'],
+  ['Pack of 2 Colourblock Polo T-shirts', 175, 'https://assets.ajio.com/medias/sys_master/root/20250210/K1ge/67a9f6c5bc78b543a932cf16/eyebogler_blue_pack_of_2_colourblock_polo_t-shirts.jpg'],
+  ['Men Round-Toe Slip-On Shoes', 500, 'https://assets.ajio.com/medias/sys_master/root1/20250818/CPsk/68a32ed48bfb9009ac8c176a/kosher_black_men_round-toe_slip-on_shoes.jpg'],
+  ['Men Polarized Sport Sunglasses', 420, 'https://assets.ajio.com/medias/sys_master/root/20250130/T6jp/679b01b8bc78b543a909133d/aferelle_grey_men_polarized_sport_sunglasses.jpg'],
+  ['Men Regular Fit Half-Sleeve Polo T-Shirt (Brown)', 225, 'https://assets.ajio.com/medias/sys_master/root1/20260306/IRet/69aab9dcaf321a7f92057dfb/buda_jeans_co_brown_men_regular_fit_half-sleeve_polo_t-shirt.jpg'],
+  ['Men Regular Fit Round-Neck T-Shirt (Black)', 200, 'https://assets.ajio.com/medias/sys_master/root/20240513/tKm6/6641b56705ac7d77bb5677a0/eyebogler_black_men_regular_fit_round-neck_t-shirt.jpg'],
+  ['Men Pack of 3 Printed Trunks', 289, 'https://assets.ajio.com/medias/sys_master/root1/20250922/p4Uj/68d143f33d468c61ab14901e/fixocra_blue_men_pack_of_3_printed_trunks.jpg'],
+  ['Men Loose Fit Band-Collar Shirt with Drop-Shoulder Sleeves', 216, 'https://assets.ajio.com/medias/sys_master/root/20240206/0xxB/65c15fef16fd2c6e6adc3e02/wuxi_pink_men_loose_fit_band-collar_shirt_with_drop-shoulder_sleeves.jpg'],
+  ['Men Typographic Print Regular Fit Tracksuit', 560, 'https://assets.ajio.com/medias/sys_master/root1/20250917/HKCF/68ca96918bfb9009ac0f7270/jump_cuts_beige_men_typographic_print_regular_fit_tracksuit.jpg'],
+  ['Men Knitted Loose Fit Shirt with Mandarin Collar (Sea Green)', 216, 'https://assets.ajio.com/medias/sys_master/root/20231121/C6c3/655cdbefafa4cf41f596bcc7/wuxi_sea_green_men_knitted_loose_fit_shirt_with_mandarin_collar.jpg'],
+  ['Men Striped Regular Fit Polo T-Shirt (White/Green)', 200, 'https://assets.ajio.com/medias/sys_master/root/20240912/gVFH/66e316456f60443f31767850/eyebogler_white_dark_navy_green_men_striped_regular_fit_polo_t-shirt.jpg'],
+  ['Men Regular Fit Shirt with Round Neck', 200, 'https://assets.ajio.com/medias/sys_master/root/20240513/17zM/6641b5c516fd2c6e6a01036f/eyebogler_black_men_regular_fit_shirt_with_round_neck.jpg'],
+  ['Men Autolock Buckle Belt', 200, 'https://assets.ajio.com/medias/sys_master/root/20250217/8eVV/67b325ac2960820c4988e20a/zevora_black_men_autolock_buckle_belt.jpg'],
+  ['Men Regular Fit Round-Neck T-Shirt (White)', 209, 'https://assets.ajio.com/medias/sys_master/root1/20260523/dR90/6a10b66914d0c21719fce6f5/zilcon_white_men_regular_fit_round-neck_t-shirt.jpg'],
+  ['Men Loose Fit Band-Collar Shirt (Wine)', 216, 'https://assets.ajio.com/medias/sys_master/root/20240206/O54T/65c15fd016fd2c6e6adc393d/wuxi_wine_men_loose_fit_band-collar_shirt_with_drop-shoulder_sleeves.jpg'],
+  ['Men Colourblock Mid-Top Lace-Up Sneakers', 495, 'https://assets.ajio.com/medias/sys_master/root1/20250818/iI24/68a325238bfb9009ac8adc5d/kosher_white_men_colourblock_mid-top_lace-up_sneakers.jpg'],
+  ['Solid Loose Fit T-shirt', 175, 'https://assets.ajio.com/medias/sys_master/root/20250317/WhgS/67d80c3e59f8353980406883/eyebogler_black_solid_loose_fit_t-shirt.jpg'],
+  ['Men Printed Loose Fit T-Shirt', 233, 'https://assets.ajio.com/medias/sys_master/root1/20260418/kmow/69e3a5e414d0c217197c6f80/clafoutis_black_men_printed_loose_fit_t-shirt.jpg'],
+  // No-image products
+  ['Men Regular Fit Checked Hooded T-Shirt', 200, null],
+  ['Men Metal Chain with Pendant', 220, null],
+  ['Brand Print Polo T-Shirt', 200, null],
+  ['Men Regular Fit Half Sleeve Polo T-Shirt (Black)', 225, null],
+  ['Men Pointed-Toe Slip-On Shoes', 500, null],
+  ['Slim Fit Shirt with Spread Collar', 250, null],
+  ['Men Lounge Polo T-Shirt with Logo Embroidery', 200, null],
+  ['Men Floral Print Slim Fit Shirt', 280, null],
+  ['Printed Round-Neck T-Shirt', 200, null],
+  ['Men Silver-Plated Chain with Clasp-Closure', 130, null],
+  ['Men Oversized Fit Round-Neck T-Shirt', 249, null],
+  ['Striped Ankle-Length Socks', 80, null],
+  ['Men Checked Regular Fit Shirt', 200, null],
+  ['Men Checked Slim Fit Shirt with Spread Collar', 250, null],
+  ['Colourblock Half-Zip T-Shirt', 150, null],
+  ['Short-Sleeve Polo T-Shirt', 200, null],
+  ['Football Athletic Socks (Red)', 76, null],
+  ['Men Round-Toe Lace-Up Shoes', 495, null],
+  ['Men Checked Popcorn Textured Slim Fit Shirt (Maroon)', 270, null],
+  ['Striped Henley T-Shirt', 175, null],
+  ['Logo Print Polo T-Shirt', 200, null],
+  ['Men Slim Fit Shirt with Patch Pocket', 250, null],
+  ['Men Spread-Collar Regular Fit Shirt', 599, null],
+  ['Striped Regular Fit Polo T-shirt', 200, null],
+  ['Men Typographic Print Oversized Fit T-Shirt', 249, null],
+  ['Men Joggers with Flap Pockets', 260, null],
+  ['Men Regular Fit High-Neck T-Shirt (Black)', 175, null],
+  ['Men Regular Fit Shirt with Patch Pocket', 250, null],
+  ['Men Crew-Neck Oversized Fit T-Shirt', 220, null],
+  ['Men Graphic Print Regular Fit T-shirt', 175, null],
+  ['Typographic Print Loose Fit T-Shirt', 200, null],
+  ['Men Printed Regular Fit Shirt with Spread Collar (Black 2)', 270, null],
+  ['Men Checked Regular Fit Shirt (Blue)', 280, null],
+  ['Men Lion Print Regular Fit Shirt', 270, null],
+  ['Men Graphic Print Regular Fit T-shirt (Charcoal)', 150, null],
+  ['Men Striped Regular Fit Shirt (Brown)', 225, null],
+  ['Men Set of 2 Kundan-Studded Tie-Up & Lumba Rakhis', 200, null],
+  ['Men Ribbed Loose Fit Shirt', 240, null],
+  ['Men Regular Fit Classic Shirt (White)', 270, null],
+  ['Men Buckle Belt with Auto-Lock Closure', 200, null],
+  ['Men Typographic Oversized Fit T-shirt (Turquoise)', 220, null],
+  ['Men Striped Regular Fit Shirt (Maroon)', 225, null],
+  ['Men Regular Fit Shirt with Patch Pocket (Peach)', 250, null],
+  ['Graphic Print Loose Fit Crew-Neck T-Shirt (Green)', 175, null],
+  ['Men Striped Regular Fit Crew-Neck T-Shirt', 200, null],
+  ['Men Silver-Plated Pendant with Chain', 130, null],
+  ['Men Embroidered Regular Fit Shirt with Round Neck (Olive)', 200, null],
+  ['Men Mid-Rise Straight Fit Flat-Front Trousers', 225, null],
+  ['Men Gold-Plated Chain with Clasp-Closure', 130, null],
+  ['Regular Fit Colourblock Crew-Neck T-Shirt (Multi)', 150, null],
+  ['Men Typographic Oversized Fit T-shirt (Brown)', 220, null],
+  ['Set of 3 Beaded Rakhis', 80, null],
+  ['Men Om & Bro Beaded Minakari Thread Rakhi', 98, null],
+  ['Men Floral Print Slim Fit Shirt with Spread Collar', 250, null],
+  ['Typographic Print Regular Fit Polo T-shirt', 200, null],
+  ['Men Gold-Plated Stainless Steel Chain', 200, null],
+  ['Men Lounge Polo T-Shirt with Logo Embroidery (Navy)', 200, null],
+  ['Men Striped Regular Fit Shirt (Purple)', 250, null],
+  ['Men Logo Print Regular Fit T-Shirt', 150, null],
+  ['Men Checked Slim Fit Shirt with Spread Collar (Navy)', 250, null],
+  ['Men Checked Regular Fit Shirt (Red)', 200, null],
+  ['Turtleneck T-Shirt with Ribbed Hems', 175, null],
+  ['Men Regular Fit Round-Neck T-Shirt (Red)', 150, null],
+  ['Men Typographic Oversized Fit T-shirt (Black)', 220, null],
+  ['Men Gold-Plated Chain with Clasp-Closure (2)', 130, null],
+  ['Oxidised Silver-Plated Wolf Locket with Chain', 130, null],
+  ['Men Leaf Print Slim Fit Shirt', 250, null],
+  ['Men Floral Print Regular Fit Shirt (White)', 270, null],
+  ['Men Regular Fit Satin Shirt with Patch Pocket', 178, null],
+  ['Men Cotton Fusion Everyday Socks', 60, null],
+  ['Men Cotton Everyday Socks (Blue)', 60, null],
+  ['Men Printed Regular Fit Crew-Neck T-Shirt (Yellow)', 150, null],
+  ['Men Relaxed Fit Shirt with Contrast Taping', 200, null],
+  ['Men Printed Loose Fit Crew-Neck T-Shirt', 220, null],
+  ['Men Printed Regular Fit Crew-Neck T-Shirt (Navy)', 150, null],
+  ['Men Checked Regular Fit Hooded Shirt', 200, null],
+  ['Women Waffle-Knit Regular Fit Hooded T-Shirt', 235, null],
+  ['RK1000325 Peacock Design Stone-Studded Bracelet', 99, null],
+  ['Demon Eye Star Classic Chain', 130, null],
+  ['Set of 6 Artificial Stones and Beads Rakhi Set', 200, null],
+  ['Men Regular Fit Logo Print Sweatshirt', 250, null],
+  ['Men Embroidered Regular Fit Polo T-Shirt', 200, null],
+  ['Straight Track Pants with Logo Print (Olive 2)', 175, null],
+  ['Men Brand Print Loose Fit Crew-Neck T-Shirt', 220, null],
+  ['Textured Loose Fit Shirt with Cutaway Neck', 240, null],
+  ['Men Spread Collar Slim Fit Shirt', 250, null],
+  ['Men Ribbed Loose Fit Shirt (Navy)', 240, null],
+  ['Men Typographic Oversized Fit T-shirt (Brown 2)', 220, null],
+  ['Set of 3 Stone-Studded Rakhis', 147, null],
+  ['Men Floral Print Slim Fit Shirt (Rosegold)', 250, null],
+  ['Men Colourblock High-Neck T-Shirt', 150, null],
+  ['Men Printed Loose Fit Round-Neck T-Shirt (Black 2)', 220, null],
+  ['Graphic Print Loose Fit Crew-Neck T-Shirt (Black 2)', 200, null],
+  ['Men Striped Regular Fit Shirt (Purple 2)', 250, null],
+  ['Men Spread Collar Slim Fit Shirt (Grey)', 250, null],
+  ['Printed Round-Neck T-Shirt (Maroon)', 200, null],
+  ['Men Mid-Rise Track Pants with Elasticated Waist', 175, null],
+  ['Men Set of 2 Beaded Tie-Up & Lumba Rakhis', 200, null],
+  ['Brand Print Crew-Neck T-Shirt (Navy)', 225, null],
+  ['Men Gold-Plated Chain with Lobster Closure', 240, null],
+  ['Women Straight Fit Track Pants', 225, null],
+  ['Men Typographic Oversized Fit T-shirt (Brown 3)', 220, null],
+  ['Men Om & Bro Beaded Minakari Thread Rakhi (2)', 98, null],
+  ['Set of 2 Printed Rakhi', 90, null],
+  ['Men Floral Print Slim Fit Shirt with Spread Collar (Blue)', 250, null],
+  ['Men Gold-Plated Chain (Premium)', 405, null],
+  ['Set of 2 Artificial Stones and Beads Rakhi Set', 200, null],
+  ['Men Printed Regular Fit Round-Neck T-Shirt', 200, null],
+  ['Men Typographic Print Regular Fit Sweatshirt', 745, null],
+  ['Men Regular Fit T-Shirt with Henley Neck', 200, null],
+  ['Men Regular Fit Shirt with Spread Collar (Black)', 199, null],
+  ['Men Typographic Loose Fit T-shirt', 220, null],
+  ['Men Printed Relaxed Fit T-Shirt', 300, null],
+  ['Men Striped Relaxed Fit T-Shirt', 300, null],
+  ['Cuban Collar Shirt with Short Sleeves (Coffee)', 240, null],
+  ['Men Regular Fit Polo T-Shirt (Black)', 200, null],
+  ['Men Regular Fit Shirt', 189, null],
+  ['Men Crew-Neck T-Shirt with Short Sleeves (Multi)', 200, null],
+  ['Men Regular Fit Classic Shirt (Purple)', 270, null],
+  ['Men Spread Collar Slim Fit Shirt (Silver)', 250, null],
+  ['Men Geometric Print Slim Fit Shirt', 280, null],
+  ['Crew-Neck T-Shirt with Brand Print', 175, null],
+  ['Men Checks Slim Fit Shirt', 280, null],
+  ['Regular Fit Polo T-Shirt with Contrast Collar', 200, null],
+  ['Men Typographic Print Oversized Fit T-shirt (Black 2)', 220, null],
+  ['Oxidised Silver-Plated Locket with Chain', 130, null],
+  ['Men Cotton Everyday Socks (Yellow)', 60, null],
+  ['Men Printed Slim Fit Shirt with Spread Collar', 250, null],
+  ['Men Straight Track Pants with Insert Pockets', 225, null],
+  ['Men Regular Fit Polo T-Shirt (Brown)', 200, null],
+  ['Oxidised Silver-Plated Stone-Studded Pendant with Chain', 130, null],
+  ['Men Embroidered Regular Fit Shirt with Round Neck (Black)', 200, null],
+  ['Men Twisted Cube Bar Pendant Necklace', 255, null],
+  ['Men Regular Fit Shirt with Full Sleeves', 333, null],
+  ['Men Striped Regular Fit Shirt with Band Collar', 189, null],
+  ['Brand Print Crew-Neck T-Shirt (Blue)', 175, null],
+  ['Men Floral Print Regular Fit Shirt (Black)', 280, null],
+  ['Men Loose Fit Shirt with Short Sleeves', 216, null],
+  ['Men Regular Fit Polo T-Shirt (Wine)', 200, null],
+  ['Crew-Neck T-Shirt with Full Sleeves (Navy)', 225, null],
+  ['Stripes Regular Fit Crew-Neck T-shirt', 175, null],
+  ['Men Knitted Loose Fit Shirt (Wine)', 240, null],
+  ['Solid Track Pants', 225, null],
+  ['Men Printed Loose Fit Round-Neck T-Shirt (220)', 220, null],
+  ['Men Regular Fit Crew-Neck T-Shirt', 160, null],
+  ['Men Paisley Print Regular Fit Shirt', 270, null],
+  ['Men Regular Fit Spread Collar Shirt', 250, null],
+  ['Men Knitted Loose Fit Shirt with Mandarin Collar (Black)', 216, null],
+  ['Solid Regular Fit High-Neck T-shirt', 175, null],
+  ['Men Tiger Print Regular Fit Shirt (White)', 270, null],
+  ['Men Printed Slim Fit Shirt (Maroon)', 280, null],
+  ['Colour-Blocked Round-Neck T-Shirt', 175, null],
+  ['Men T-shirt with Round Neck', 160, null],
+  ['Men Regular Fit Shirt with Spread Collar (Blue)', 333, null],
+  ['Men Regular Fit Classic Shirt (Pink)', 270, null],
+  ['Men Silver-Plated Chain with Clasp-Closure (3)', 130, null],
+  ['Men Colourblock High-Neck T-Shirt (Grey)', 150, null],
+  ['Men Loose Fit Typographic Print Round-Neck T-Shirt', 220, null],
+  ['Men Eagle Print Regular Fit Shirt (White 2)', 270, null],
+  ['Men Leaf Print Slim Fit Shirt with Spread Collar', 250, null],
+  ['Colourblock Crew Neck T-shirt', 200, null],
+  ['Men Low-Top Lace-Up Sneakers', 495, null],
+  ['Men Loose Fit Round-Neck T-Shirt', 220, null],
+  ['Men Typographic Track Pants', 260, null],
+  ['Men Checked Slim Fit Shirt with Spread Collar (Navy 2)', 250, null],
+  ['Men Regular Fit Shirt (White)', 189, null],
+  ['Men Regular Fit Cotton Half-Sleeve Crew-Neck T-Shirts', 499, null],
+  ['Men Gold-Plated Chain', 130, null],
+  ['Men Regular Fit Polo T-Shirt (Beige)', 200, null],
+  ['Men Gold-Plated Chain with Clasp-Closure (3)', 130, null],
+  ['Men Regular Fit Polo T-Shirt (Navy)', 200, null],
+  ['Men Striped Regular Fit Shirt (Brown 2)', 250, null],
+  ['Men Embroidered Regular Fit Shirt with Collar Neck', 200, null],
+  ['Graphic Print Loose Fit Crew-Neck T-Shirt (Black 3)', 175, null],
+  ['Men Striped Regular Fit Polo T-Shirt (Coffee)', 200, null],
+  ['Men Printed Regular Fit Crew-Neck T-Shirt (Blue)', 150, null],
+  ['Men Graphic Print Track Pants', 175, null],
+  ['Men Striped Regular Fit Shirt (Black)', 199, null],
+  ['Men Regular Fit Shirt with Full Sleeves (White)', 333, null],
+  ['Brand Print Crew-Neck T-Shirt (Blue 2)', 175, null],
+  ['Men Floral Print Regular Fit Shirt (Black 2)', 280, null],
+  ['Men Regular Fit Polo T-Shirt (Wine 2)', 200, null],
+  ['Solid Track Pants (Black)', 225, null],
+  ['Men Loose Fit V-Neck T-Shirt', 200, null],
+];
+
+async function main() {
+  console.log(`\n📦 Processing ${RAW.length} products...\n`);
+
+  const products = RAW.map(([name, rawPrice, imageUrl]) => ({
+    name: name.trim(),
+    price: adjustPrice(rawPrice),
+    category: 'Clothing',
+    type: inferType(name),
+    imageUrl: imageUrl || null,
+    stockQuantity: Math.floor(Math.random() * 300) + 100,
+    description: null,
+    sizes: null,
+    gender: inferGender(name),
+    isActive: true,
+  }));
+
+  // Stats
+  const byType = {};
+  products.forEach(p => { byType[p.type] = (byType[p.type] || 0) + 1; });
+
+  console.log('By type:');
+  Object.entries(byType).sort((a,b) => b[1]-a[1]).forEach(([t,n]) => console.log(`  ${t}: ${n}`));
+
+  const result = await prisma.product.createMany({ data: products });
+  console.log(`\n✅ Inserted ${result.count} new products`);
+
+  const total = await prisma.product.count();
+  console.log(`📊 Total products in DB: ${total}`);
+  console.log('\n✅ All prices end in 99. Items under ₹400 raised to ₹499 minimum.');
+}
+
+main().catch(e => { console.error('❌', e.message); process.exit(1); }).finally(() => prisma.$disconnect());

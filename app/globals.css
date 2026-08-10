@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme inline {
+  /* ── Financo-inspired light theme ── */
+  --color-background:   #F2F3F5;
+  --color-surface:      #FFFFFF;
+  --color-surface-2:    #F7F8FA;
+  --color-border:       #E5E7EB;
+  --color-foreground:   #1A1A1A;
+  --color-muted:        #6B7280;
+  --color-accent:       #E85D26;
+  --color-accent-2:     #F58844;
+  --color-success:      #16A34A;
+  --color-warning:      #F59E0B;
+  --color-danger:       #DC2626;
+  --color-surface-hover:#ECEDF0;
+
+  /* ── Typography ── */
+  --font-sans:    'Inter', system-ui, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-mono:    ui-monospace, monospace;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--color-background); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+
+/* ── Card (replaces glass) ── */
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(229, 231, 235, 0.8);
+  box-shadow: 0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04);
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px 0 rgba(0,0,0,0.06), 0 1px 2px -1px rgba(0,0,0,0.04);
+}
+
+/* ── Orange gradient text ── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Orange accent card (like "Total Earnings") ── */
+.accent-card {
+  background: linear-gradient(135deg, #E85D26 0%, #F07340 60%, #F58844 100%);
+  color: #fff;
+  border: none;
+}
+
+/* ── Pill nav item (active) ── */
+.pill-active {
+  background: #1A1A1A;
+  color: #fff;
+  border-radius: 99px;
+  padding: 6px 18px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* ── Animations ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in  { animation: fade-in  0.3s ease-out; }
+.animate-slide-in { animation: slide-in 0.3s ease-out; }
+.animate-scale-in { animation: scale-in 0.25s ease-out; }
+
+/* ── Focus ring ── */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
