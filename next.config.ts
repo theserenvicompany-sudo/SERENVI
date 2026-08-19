@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Output to frontend/.next so Vercel finds it (root dir set to 'frontend' in dashboard)
+  distDir: process.env.VERCEL ? 'frontend/.next' : '.next',
+
   // Proxy API calls to backend service
   async rewrites() {
     return [
